@@ -838,7 +838,9 @@ final class HeadsetClientStateMachine extends StateMachine {
         while (it.hasNext()) {
             Hashtable.Entry<Integer, BluetoothHeadsetClientCall> entry = it.next();
 
-            if (mCallsUpdate.containsKey(entry.getKey())) {
+            if (mCallsUpdate.containsKey(entry.getKey()) ||
+                    entry.getValue().getState() ==
+                    BluetoothHeadsetClientCall.CALL_STATE_HELD_BY_RESPONSE_AND_HOLD) {
                 continue;
             }
 
@@ -884,6 +886,11 @@ final class HeadsetClientStateMachine extends StateMachine {
             boolean outgoing) {
         Log.d(TAG, "queryCallsUpdate: " + id);
 
+        if (!mCalls.containsKey(id)) {
+            Log.d(TAG, "adding call " + id);
+            mCalls.put(id, new BluetoothHeadsetClientCall(mCurrentDevice, id, state, number, multiParty,
+                    outgoing));
+        }
         // should not happen
         if (mCallsUpdate == null) {
             return;
