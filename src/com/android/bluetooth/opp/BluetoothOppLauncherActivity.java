@@ -55,6 +55,9 @@ import android.util.Patterns;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.Locale;
+import android.os.Handler;
+import android.os.Message;
+
 
 /**
  * This class is designed to act as the entry point of handling the share intent
@@ -68,6 +71,9 @@ public class BluetoothOppLauncherActivity extends Activity {
     // Regex that matches characters that have special meaning in HTML. '<', '>', '&' and
     // multiple continuous spaces.
     private static final Pattern PLAIN_TEXT_TO_ESCAPE = Pattern.compile("[<>&]| {2,}|\r?\n");
+
+    private final int LAUNCH_DEVICE_PICKER_AFTER_FILE_SAVE = 1;
+
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -152,18 +158,21 @@ public class BluetoothOppLauncherActivity extends Activity {
                 if (mimeType != null && uris != null) {
                     if (V) Log.v(TAG, "Get ACTION_SHARE_MULTIPLE intent: uris " + uris + "\n Type= "
                                 + mimeType);
+                    final MyHandler handler = new MyHandler();
+
                     Thread t = new Thread(new Runnable() {
                         public void run() {
                             BluetoothOppManager.getInstance(BluetoothOppLauncherActivity.this)
                                 .saveSendingFileInfo(mimeType,uris, false);
-                            //Done getting file info..Launch device picker
-                            //and finish this activity
-                            launchDevicePicker();
-                            finish();
+                            //Done getting multiple files info
+                            //Semd msg to handler to Launch device picker after current
+                            // thread is finished
+                            if (V) Log.v(TAG, "Send msg to Handler after the current thread "+
+                                              "work is finished");
+                            handler.sendEmptyMessage(LAUNCH_DEVICE_PICKER_AFTER_FILE_SAVE);
                         }
                     });
                     t.start();
-                    return;
                 } else {
                     Log.e(TAG, "type is null; or sending files URIs are null");
                     finish();
@@ -186,8 +195,24 @@ public class BluetoothOppLauncherActivity extends Activity {
         }
     }
 
-    /**
-     * Turns on Bluetooth if not already on, or launches device picker if Bluetooth is on
+
+     private  class MyHandler extends Handler {
+
+         @Override
+         public void handleMessage(Message msg) {
+             // Launch device picker after thread is finished
+             if (msg.what == LAUNCH_DEVICE_PICKER_AFTER_FILE_SAVE) {
+                 if (V) Log.v(TAG,"Devicepicker is now going to be started and "
+                                  +"current activity is going to be finished");
+                 launchDevicePicker();
+                 finish();
+            }
+         }
+     }
+
+
+
+     /** Turns on Bluetooth if not already on, or launches device picker if Bluetooth is on
      * @return
      */
     private final void launchDevicePicker() {
