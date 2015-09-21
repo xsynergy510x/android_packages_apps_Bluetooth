@@ -131,16 +131,15 @@ class AdvertiseManager {
         } else {
             // Note in failure case we'll wait for the latch to timeout(which takes 100ms) and
             // the mClientHandler thread will be blocked till timeout.
-            postCallback(clientIf, AdvertiseCallback.ADVERTISE_FAILED_INTERNAL_ERROR);
+            postCallback(clientIf, AdvertiseCallback.ADVERTISE_FAILED_INTERNAL_ERROR, true);
         }
     }
 
     // Post callback status to app process.
-    private void postCallback(int clientIf, int status) {
+    private void postCallback(int clientIf, int status, boolean isStart) {
         try {
             AdvertiseClient client = getAdvertiseClient(clientIf);
             AdvertiseSettings settings = (client == null) ? null : client.settings;
-            boolean isStart = true;
             mService.onMultipleAdvertiseCallback(clientIf, status, isStart, settings);
         } catch (RemoteException e) {
             loge("failed onMultipleAdvertiseCallback", e);
@@ -185,21 +184,21 @@ class AdvertiseManager {
             Utils.enforceAdminPermission(mService);
             int clientIf = client.clientIf;
             if (mAdvertiseClients.contains(clientIf)) {
-                postCallback(clientIf, AdvertiseCallback.ADVERTISE_FAILED_ALREADY_STARTED);
+                postCallback(clientIf, AdvertiseCallback.ADVERTISE_FAILED_ALREADY_STARTED, true);
                 return;
             }
 
             if (mAdvertiseClients.size() >= maxAdvertiseInstances()) {
                 postCallback(clientIf,
-                        AdvertiseCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS);
+                        AdvertiseCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS, true);
                 return;
             }
             if (!mAdvertiseNative.startAdverising(client)) {
-                postCallback(clientIf, AdvertiseCallback.ADVERTISE_FAILED_INTERNAL_ERROR);
+                postCallback(clientIf, AdvertiseCallback.ADVERTISE_FAILED_INTERNAL_ERROR, true);
                 return;
             }
             mAdvertiseClients.add(client);
-            postCallback(clientIf, AdvertiseCallback.ADVERTISE_SUCCESS);
+            postCallback(clientIf, AdvertiseCallback.ADVERTISE_SUCCESS, true);
         }
 
         // Handles stop advertising.
@@ -217,6 +216,7 @@ class AdvertiseManager {
             if (mAdvertiseClients.contains(client)) {
                 mAdvertiseClients.remove(client);
             }
+            postCallback(client.clientIf, AdvertiseCallback.ADVERTISE_SUCCESS, false);
         }
 
         // Returns maximum advertise instances supported by controller.
