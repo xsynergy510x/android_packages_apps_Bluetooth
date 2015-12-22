@@ -91,6 +91,10 @@ public class GattService extends ProfileService {
         UUID.fromString("00002A4D-0000-1000-8000-00805F9B34FB")
     };
 
+    private static final UUID[] FIDO_UUIDS = {
+        UUID.fromString("0000FFFD-0000-1000-8000-00805F9B34FB") // U2F
+    };
+
     /**
      * Search queue to serialize remote onbject inspection.
      */
@@ -883,7 +887,7 @@ public class GattService extends ProfileService {
             + ", charUuid=" + charUuid + ", length=" + data.length);
 
 
-        if (isHidUuid(charUuid) &&
+        if (isRestrictedCharUuid(charUuid) || isRestrictedSrvcUuid(srvcUuid) &&
                (0 != checkCallingOrSelfPermission(BLUETOOTH_PRIVILEGED))) {
             return;
         }
@@ -1550,7 +1554,9 @@ public class GattService extends ProfileService {
                             int srvcInstanceId, UUID srvcUuid,
                             int charInstanceId, UUID charUuid, int authReq) {
         enforceCallingOrSelfPermission(BLUETOOTH_PERM, "Need BLUETOOTH permission");
-        if (isHidUuid(charUuid)) enforcePrivilegedPermission();
+        if (isRestrictedCharUuid(charUuid) || isRestrictedSrvcUuid(srvcUuid)) {
+            enforcePrivilegedPermission();
+        }
 
         if (VDBG) Log.d(TAG, "readCharacteristic() - address=" + address);
 
@@ -1570,7 +1576,9 @@ public class GattService extends ProfileService {
                              int charInstanceId, UUID charUuid, int writeType,
                              int authReq, byte[] value) {
         enforceCallingOrSelfPermission(BLUETOOTH_PERM, "Need BLUETOOTH permission");
-        if (isHidUuid(charUuid)) enforcePrivilegedPermission();
+        if (isRestrictedCharUuid(charUuid) || isRestrictedSrvcUuid(srvcUuid)) {
+            enforcePrivilegedPermission();
+        }
 
         if (VDBG) Log.d(TAG, "writeCharacteristic() - address=" + address);
 
@@ -1593,7 +1601,9 @@ public class GattService extends ProfileService {
                             int descrInstanceId, UUID descrUuid,
                             int authReq) {
         enforceCallingOrSelfPermission(BLUETOOTH_PERM, "Need BLUETOOTH permission");
-        if (isHidUuid(charUuid)) enforcePrivilegedPermission();
+        if (isRestrictedCharUuid(charUuid) || isRestrictedSrvcUuid(srvcUuid)) {
+            enforcePrivilegedPermission();
+        }
 
         if (VDBG) Log.d(TAG, "readDescriptor() - address=" + address);
 
@@ -1617,7 +1627,9 @@ public class GattService extends ProfileService {
                             int descrInstanceId, UUID descrUuid,
                             int writeType, int authReq, byte[] value) {
         enforceCallingOrSelfPermission(BLUETOOTH_PERM, "Need BLUETOOTH permission");
-        if (isHidUuid(charUuid)) enforcePrivilegedPermission();
+        if (isRestrictedCharUuid(charUuid) || isRestrictedSrvcUuid(srvcUuid)) {
+            enforcePrivilegedPermission();
+        }
 
         if (VDBG) Log.d(TAG, "writeDescriptor() - address=" + address);
 
@@ -1658,7 +1670,9 @@ public class GattService extends ProfileService {
                 int charInstanceId, UUID charUuid,
                 boolean enable) {
         enforceCallingOrSelfPermission(BLUETOOTH_PERM, "Need BLUETOOTH permission");
-        if (isHidUuid(charUuid)) enforcePrivilegedPermission();
+        if (isRestrictedCharUuid(charUuid) || isRestrictedSrvcUuid(srvcUuid)) {
+            enforcePrivilegedPermission();
+        }
 
         if (DBG) Log.d(TAG, "registerForNotification() - address=" + address + " enable: " + enable);
 
@@ -2132,9 +2146,24 @@ public class GattService extends ProfileService {
      * Private functions
      *************************************************************************/
 
+    private boolean isRestrictedCharUuid(final UUID charUuid) {
+      return isHidUuid(charUuid);
+    }
+
+    private boolean isRestrictedSrvcUuid(final UUID srvcUuid) {
+      return isFidoUUID(srvcUuid);
+    }
+
     private boolean isHidUuid(final UUID uuid) {
         for (UUID hid_uuid : HID_UUIDS) {
             if (hid_uuid.equals(uuid)) return true;
+        }
+        return false;
+    }
+
+    private boolean isFidoUUID(final UUID uuid) {
+        for (UUID fido_uuid : FIDO_UUIDS) {
+            if (fido_uuid.equals(uuid)) return true;
         }
         return false;
     }
