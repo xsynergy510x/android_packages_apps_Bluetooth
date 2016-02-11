@@ -2966,12 +2966,11 @@ final class HeadsetStateMachine extends StateMachine {
     }
 
     private void processAnswerCall(BluetoothDevice device) {
-        if(device == null) {
+         if(device == null) {
             Log.w(TAG, "processAnswerCall device is null");
             return;
 
         }
-
         if (mPhoneProxy != null) {
             try {
                 mPhoneProxy.answerCall();
