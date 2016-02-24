@@ -91,6 +91,10 @@ public class GattService extends ProfileService {
         UUID.fromString("00002A4D-0000-1000-8000-00805F9B34FB")
     };
 
+    private static final UUID[] FIDO_UUIDS = {
+        UUID.fromString("0000FFFD-0000-1000-8000-00805F9B34FB") // U2F
+    };
+
     /**
      * Search queue to serialize remote onbject inspection.
      */
@@ -883,7 +887,7 @@ public class GattService extends ProfileService {
             + ", charUuid=" + charUuid + ", length=" + data.length);
 
 
-        if (isHidUuid(charUuid) &&
+        if (isRestrictedCharUuid(charUuid) || isRestrictedSrvcUuid(srvcUuid) &&
                (0 != checkCallingOrSelfPermission(BLUETOOTH_PRIVILEGED))) {
             return;
         }
@@ -1418,6 +1422,7 @@ public class GattService extends ProfileService {
         scanClient.hasPeersMacAddressPermission = Utils.checkCallerHasPeersMacAddressPermission(
                 this);
         scanClient.legacyForegroundApp = Utils.isLegacyForegroundApp(this, callingPackage);
+        mClientMap.getScanStatsById(appIf).startScan();
         mScanManager.startScan(scanClient);
     }
 
@@ -1432,6 +1437,7 @@ public class GattService extends ProfileService {
         int scanQueueSize = mScanManager.getBatchScanQueue().size() +
                 mScanManager.getRegularScanQueue().size();
         if (DBG) Log.d(TAG, "stopScan() - queue size =" + scanQueueSize);
+        mClientMap.getScanStatsById(client.clientIf).stopScan();
         mScanManager.stopScan(client);
     }
 
@@ -1460,7 +1466,7 @@ public class GattService extends ProfileService {
         enforceCallingOrSelfPermission(BLUETOOTH_PERM, "Need BLUETOOTH permission");
 
         if (DBG) Log.d(TAG, "registerClient() - UUID=" + uuid);
-        mClientMap.add(uuid, callback);
+        mClientMap.add(uuid, callback, this);
         gattClientRegisterAppNative(uuid.getLeastSignificantBits(),
                                     uuid.getMostSignificantBits());
     }
@@ -1548,7 +1554,9 @@ public class GattService extends ProfileService {
                             int srvcInstanceId, UUID srvcUuid,
                             int charInstanceId, UUID charUuid, int authReq) {
         enforceCallingOrSelfPermission(BLUETOOTH_PERM, "Need BLUETOOTH permission");
-        if (isHidUuid(charUuid)) enforcePrivilegedPermission();
+        if (isRestrictedCharUuid(charUuid) || isRestrictedSrvcUuid(srvcUuid)) {
+            enforcePrivilegedPermission();
+        }
 
         if (VDBG) Log.d(TAG, "readCharacteristic() - address=" + address);
 
@@ -1568,7 +1576,9 @@ public class GattService extends ProfileService {
                              int charInstanceId, UUID charUuid, int writeType,
                              int authReq, byte[] value) {
         enforceCallingOrSelfPermission(BLUETOOTH_PERM, "Need BLUETOOTH permission");
-        if (isHidUuid(charUuid)) enforcePrivilegedPermission();
+        if (isRestrictedCharUuid(charUuid) || isRestrictedSrvcUuid(srvcUuid)) {
+            enforcePrivilegedPermission();
+        }
 
         if (VDBG) Log.d(TAG, "writeCharacteristic() - address=" + address);
 
@@ -1591,7 +1601,9 @@ public class GattService extends ProfileService {
                             int descrInstanceId, UUID descrUuid,
                             int authReq) {
         enforceCallingOrSelfPermission(BLUETOOTH_PERM, "Need BLUETOOTH permission");
-        if (isHidUuid(charUuid)) enforcePrivilegedPermission();
+        if (isRestrictedCharUuid(charUuid) || isRestrictedSrvcUuid(srvcUuid)) {
+            enforcePrivilegedPermission();
+        }
 
         if (VDBG) Log.d(TAG, "readDescriptor() - address=" + address);
 
@@ -1615,7 +1627,9 @@ public class GattService extends ProfileService {
                             int descrInstanceId, UUID descrUuid,
                             int writeType, int authReq, byte[] value) {
         enforceCallingOrSelfPermission(BLUETOOTH_PERM, "Need BLUETOOTH permission");
-        if (isHidUuid(charUuid)) enforcePrivilegedPermission();
+        if (isRestrictedCharUuid(charUuid) || isRestrictedSrvcUuid(srvcUuid)) {
+            enforcePrivilegedPermission();
+        }
 
         if (VDBG) Log.d(TAG, "writeDescriptor() - address=" + address);
 
@@ -1656,7 +1670,9 @@ public class GattService extends ProfileService {
                 int charInstanceId, UUID charUuid,
                 boolean enable) {
         enforceCallingOrSelfPermission(BLUETOOTH_PERM, "Need BLUETOOTH permission");
-        if (isHidUuid(charUuid)) enforcePrivilegedPermission();
+        if (isRestrictedCharUuid(charUuid) || isRestrictedSrvcUuid(srvcUuid)) {
+            enforcePrivilegedPermission();
+        }
 
         if (DBG) Log.d(TAG, "registerForNotification() - address=" + address + " enable: " + enable);
 
@@ -1988,7 +2004,7 @@ public class GattService extends ProfileService {
         enforceCallingOrSelfPermission(BLUETOOTH_PERM, "Need BLUETOOTH permission");
 
         if (DBG) Log.d(TAG, "registerServer() - UUID=" + uuid);
-        mServerMap.add(uuid, callback);
+        mServerMap.add(uuid, callback, this);
         gattServerRegisterAppNative(uuid.getLeastSignificantBits(),
                                     uuid.getMostSignificantBits());
     }
@@ -2130,9 +2146,24 @@ public class GattService extends ProfileService {
      * Private functions
      *************************************************************************/
 
+    private boolean isRestrictedCharUuid(final UUID charUuid) {
+      return isHidUuid(charUuid);
+    }
+
+    private boolean isRestrictedSrvcUuid(final UUID srvcUuid) {
+      return isFidoUUID(srvcUuid);
+    }
+
     private boolean isHidUuid(final UUID uuid) {
         for (UUID hid_uuid : HID_UUIDS) {
             if (hid_uuid.equals(uuid)) return true;
+        }
+        return false;
+    }
+
+    private boolean isFidoUUID(final UUID uuid) {
+        for (UUID fido_uuid : FIDO_UUIDS) {
+            if (fido_uuid.equals(uuid)) return true;
         }
         return false;
     }
@@ -2171,7 +2202,20 @@ public class GattService extends ProfileService {
     }
 
     private void continueSearch(int connId, int status) throws RemoteException {
-        if (status == 0 && !mSearchQueue.isEmpty()) {
+
+        // Search is complete when there was error, or nothing more to process
+        if (status != 0 || mSearchQueue.isEmptyFor(connId)) {
+            // In case we complete because of error, clean up
+            // any remaining operations for this connection.
+            mSearchQueue.removeConnId(connId);
+
+            ClientMap.App app = mClientMap.getByConnId(connId);
+            if (app != null) {
+                app.callback.onSearchComplete(mClientMap.addressByConnId(connId), status);
+            }
+        }
+
+        if (!mSearchQueue.isEmpty()) {
             SearchQueue.Entry svc = mSearchQueue.pop();
 
             if (svc.charUuidLsb == 0) {
@@ -2183,11 +2227,6 @@ public class GattService extends ProfileService {
                 gattClientGetDescriptorNative(svc.connId, svc.srvcType,
                     svc.srvcInstId, svc.srvcUuidLsb, svc.srvcUuidMsb,
                     svc.charInstId, svc.charUuidLsb, svc.charUuidMsb, 0, 0, 0);
-            }
-        } else {
-            ClientMap.App app = mClientMap.getByConnId(connId);
-            if (app != null) {
-                app.callback.onSearchComplete(mClientMap.addressByConnId(connId), status);
             }
         }
     }

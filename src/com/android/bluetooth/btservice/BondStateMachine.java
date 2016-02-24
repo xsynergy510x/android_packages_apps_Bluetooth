@@ -29,6 +29,8 @@ import android.content.Intent;
 import android.os.Message;
 import android.os.UserHandle;
 import android.util.Log;
+import com.android.bluetooth.a2dp.A2dpSinkService;
+import com.android.bluetooth.hfpclient.HeadsetClientService;
 import android.os.PowerManager;
 
 import com.android.bluetooth.Utils;
@@ -475,6 +477,8 @@ final class BondStateMachine extends StateMachine {
         HidService hidService = HidService.getHidService();
         A2dpService a2dpService = A2dpService.getA2dpService();
         HeadsetService headsetService = HeadsetService.getHeadsetService();
+        A2dpSinkService a2dpSinkService = A2dpSinkService.getA2dpSinkService();
+        HeadsetClientService hsClientService = HeadsetClientService.getHeadsetClientService();
 
         if ((hidService != null) &&
             (hidService.getPriority(device) == BluetoothProfile.PRIORITY_UNDEFINED)){
@@ -490,12 +494,24 @@ final class BondStateMachine extends StateMachine {
             (headsetService.getPriority(device) == BluetoothProfile.PRIORITY_UNDEFINED)){
             headsetService.setPriority(device,BluetoothProfile.PRIORITY_ON);
         }
+
+        if ((a2dpSinkService != null) &&
+            (a2dpSinkService.getPriority(device) == BluetoothProfile.PRIORITY_UNDEFINED)){
+             a2dpSinkService.setPriority(device,BluetoothProfile.PRIORITY_ON);
+        }
+
+        if ((hsClientService != null) &&
+            (hsClientService.getPriority(device) == BluetoothProfile.PRIORITY_UNDEFINED)){
+            hsClientService.setPriority(device,BluetoothProfile.PRIORITY_ON);
+        }
     }
 
     private void clearProfilePriorty (BluetoothDevice device){
         HidService hidService = HidService.getHidService();
         A2dpService a2dpService = A2dpService.getA2dpService();
         HeadsetService headsetService = HeadsetService.getHeadsetService();
+        A2dpSinkService a2dpSinkService = A2dpSinkService.getA2dpSinkService();
+        HeadsetClientService hsClientService = HeadsetClientService.getHeadsetClientService();
 
         if (hidService != null)
             hidService.setPriority(device,BluetoothProfile.PRIORITY_UNDEFINED);
@@ -503,6 +519,10 @@ final class BondStateMachine extends StateMachine {
             a2dpService.setPriority(device,BluetoothProfile.PRIORITY_UNDEFINED);
         if(headsetService != null)
             headsetService.setPriority(device,BluetoothProfile.PRIORITY_UNDEFINED);
+        if (a2dpSinkService != null)
+            a2dpSinkService.setPriority(device,BluetoothProfile.PRIORITY_UNDEFINED);
+        if (hsClientService != null)
+            hsClientService.setPriority(device,BluetoothProfile.PRIORITY_UNDEFINED);
     }
 
     private void infoLog(String msg) {
